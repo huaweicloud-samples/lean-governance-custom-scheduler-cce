@@ -1,0 +1,20 @@
+# 自定义调度器 ServiceMonitor（配合 Prometheus Operator / 云原生监控）
+# selector 与静态清单 Deployment 标签保持一致（component/tier）。
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: custom-scheduler-monitor
+  namespace: kube-system
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: https
+  namespaceSelector:
+    matchNames:
+    - kube-system
+  selector:
+    matchLabels:
+      app: custom-scheduler

@@ -1,0 +1,10 @@
+custom-scheduler has been deployed to namespace {{ .Values.nameSpace }}.
+
+1. Verify the scheduler pods are running:
+   kubectl get pods -n {{ .Values.nameSpace }} -l app.kubernetes.io/name={{ include "custom-scheduler.name" . }}
+
+2. Schedule a test workload on this scheduler by setting in its pod spec:
+   spec.schedulerName: {{ .Values.schedulerName }}
+
+3. Check scheduler logs:
+   kubectl logs -n {{ .Values.nameSpace }} -l app.kubernetes.io/name={{ include "custom-scheduler.name" . }} -f

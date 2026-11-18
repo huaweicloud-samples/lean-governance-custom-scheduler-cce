@@ -1,0 +1,29 @@
+# ============================================================================
+# Terraform 变量示例（复制为 terraform.tfvars 后填写）
+# 凭据通过环境变量注入，不在此文件硬编码：
+#   export HW_ACCESS_KEY="<你的访问密钥>"
+#   export HW_SECRET_KEY="<你的私密密钥>"
+# ============================================================================
+
+region = "cn-north-4"
+
+project_name = "custom-scheduler"
+
+vpc_cidr = "10.0.0.0/16"
+
+public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.11.0/24", "10.0.12.0/24"]
+
+swr_organization = "custom-scheduler"
+
+node_flavor = "s6.large.2"
+node_count  = 1   # 验证专用最小配置：单节点即可验证调度器与装箱效果
+
+# 节点登录公钥：替换为自有公钥（留空占位串将无法 SSH 登录节点）
+node_login_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIplaceholder-replace-with-your-own-public-key zhangcheng@localhost"
+
+# 是否创建 NAT 网关 + EIP 提供节点公网出口。默认 false：节点经 SWR 内网拉取镜像，零出网费。
+enable_nat = false
+
+# 仅当 enable_nat=true 时生效：NAT 出口带宽（Mbit/s）
+eip_bandwidth_size = 5

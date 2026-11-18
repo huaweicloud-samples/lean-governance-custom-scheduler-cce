@@ -1,0 +1,22 @@
+# 自定义调度器指标 Service（供 Prometheus 抓取 /metrics 端点）
+# 注意：selector 与静态清单 Deployment 的标签保持一致（component/tier）。
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: custom-scheduler
+  name: custom-scheduler-metrics
+  namespace: kube-system
+spec:
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: metrics
+    port: 10259
+    protocol: TCP
+    targetPort: 10259
+  selector:
+    component: scheduler
+    tier: control-plane
+  type: ClusterIP

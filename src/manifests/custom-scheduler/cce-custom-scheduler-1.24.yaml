@@ -1,0 +1,327 @@
+# ============================================================================
+# 自定义调度器（MostAllocated 装箱策略）—— 静态清单（KubeSchedulerConfiguration v1beta2）
+# 适用：Kubernetes 1.24（KubeSchedulerConfiguration v1 在 1.25 才稳定，
+#       1.24 需使用 kubescheduler.config.k8s.io/v1beta2）。
+# 其余说明同 cce-custom-scheduler.yaml（Kubernetes 1.25+ 版本请使用后者）。
+# ============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-k8s-scheduler
+  namespace: kube-system
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: custom-k8s-scheduler
+rules:
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resourceNames:
+  - kube-scheduler
+  resources:
+  - leases
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resourceNames:
+  - kube-scheduler
+  resources:
+  - endpoints
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - bindings
+  - pods/binding
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - pods/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - replicationcontrollers
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  - persistentvolumes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - csinodes
+  - volumeattachments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - csidrivers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - csistoragecapacities
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: custom-k8s-scheduler-as-kube-scheduler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: custom-k8s-scheduler
+subjects:
+- kind: ServiceAccount
+  name: custom-k8s-scheduler
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: custom-k8s-scheduler-as-volume-scheduler
+subjects:
+- kind: ServiceAccount
+  name: custom-k8s-scheduler
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: system:volume-scheduler
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-k8s-scheduler-config
+  namespace: kube-system
+data:
+  custom-k8s-scheduler-config.yaml: |
+    apiVersion: kubescheduler.config.k8s.io/v1beta2
+    kind: KubeSchedulerConfiguration
+    profiles:
+      - pluginConfig:
+          - args:
+              apiVersion: kubescheduler.config.k8s.io/v1beta2
+              kind: NodeResourcesFitArgs
+              scoringStrategy:
+                  resources:
+                      - name: cpu
+                        weight: 1
+                      - name: memory
+                        weight: 1
+                  type: MostAllocated
+            name: NodeResourcesFit
+        plugins:
+          score:
+              enabled:
+                  - name: NodeResourcesFit
+                    weight: 1
+              disabled:
+                  - name: "*"
+          multiPoint:
+              enabled:
+                  - name: NodeResourcesFit
+                    weight: 1
+        schedulerName: custom-k8s-scheduler
+    leaderElection:
+      leaderElect: true
+      resourceNamespace: kube-system
+      resourceName: custom-k8s-scheduler
+    clientConnection:
+      burst: 200
+      qps: 100
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    component: scheduler
+    tier: control-plane
+  name: custom-k8s-scheduler
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      component: scheduler
+      tier: control-plane
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        component: scheduler
+        tier: control-plane
+        version: second
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                component: scheduler
+                tier: control-plane
+            topologyKey: kubernetes.io/hostname
+      serviceAccountName: custom-k8s-scheduler
+      containers:
+      - command:
+        - /usr/local/bin/kube-scheduler
+        - --bind-address=0.0.0.0
+        - --config=/etc/kubernetes/custom-k8s-scheduler/custom-k8s-scheduler-config.yaml
+        - --v=5
+        image: swr.cn-north-4.myhuaweicloud.com/custom-scheduler/kube-scheduler:v1.24.17
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 10259
+            scheme: HTTPS
+          initialDelaySeconds: 15
+        name: kube-second-scheduler
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 10259
+            scheme: HTTPS
+        resources:
+          requests:
+            cpu: '1'
+            memory: 1Gi
+          limits:
+            cpu: '2'
+            memory: 2Gi
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - ALL
+        volumeMounts:
+          - name: config-volume
+            mountPath: /etc/kubernetes/custom-k8s-scheduler
+      hostNetwork: false
+      hostPID: false
+      volumes:
+        - name: config-volume
+          configMap:
+            name: custom-k8s-scheduler-config
