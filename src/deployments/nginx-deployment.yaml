@@ -1,0 +1,66 @@
+# 示例业务应用：使用自定义调度器（spec.schedulerName: custom-k8s-scheduler）。
+# 镜像托管于 SWR 内网仓库，集群节点经内网拉取，无需公网出口。
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx-test
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-app
+  namespace: nginx-test
+  labels:
+    App: od-amd
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 20%
+  selector:
+    matchLabels:
+      App: od-amd
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        App: od-amd
+    spec:
+      schedulerName: custom-k8s-scheduler
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        fsGroup: 101
+      containers:
+      - name: nginx-app-memory
+        image: swr.cn-north-4.myhuaweicloud.com/custom-scheduler/nginx:stable-perl
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "64Mi"
+          limits:
+            cpu: "250m"
+            memory: "64Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 80
